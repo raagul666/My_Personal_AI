@@ -1,0 +1,6 @@
+2025-02-11 10:22:42 - Received command: open_file with params: {'file_path': 'C:/Users/nraag/OneDrive/Documents/Fresher_Tech_Resume_template.docx'}
+2025-02-11 10:22:42 - Executed command: open_file, result: Opened file: C:/Users/nraag/OneDrive/Documents/Fresher_Tech_Resume_template.docx
+2025-02-11 10:29:04 - Received command: simulate_keyboard with params: {'keys': 'Hello, World!'}
+2025-02-11 10:29:05 - Executed command: simulate_keyboard, result: Simulated typing: Hello, World!
+2025-02-11 10:29:36 - Received command: simulate_mouse with params: {'action': 'click', 'x': '100', 'y': '200'}
+2025-02-11 10:29:36 - Executed command: simulate_mouse, result: Mouse clicked at (100, 200).

@@ -1,0 +1,199 @@
+import os
+import subprocess
+import shutil
+import time
+import psutil
+import pyautogui
+import pygetwindow as gw
+from fastapi import FastAPI, HTTPException, Header, Depends
+from pydantic import BaseModel
+from typing import Optional, Dict
+import logging
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger("AdvancedPCAutomation")
+
+app = FastAPI(
+    title="Advanced PC Automation API",
+    description="God-Level PC Automation: File management, App automation, System control, UI automation, and Custom tasks.",
+    version="2.0"
+)
+
+# Environment variable for API token (set this in your .env or environment)
+# Example: export PC_AUTOMATION_API_TOKEN="YOUR_SECRET_TOKEN"
+EXPECTED_API_TOKEN = os.environ.get("PC_AUTOMATION_API_TOKEN")
+if not EXPECTED_API_TOKEN:
+    raise Exception("Missing PC_AUTOMATION_API_TOKEN environment variable!")
+
+# Dependency: Verify API Token from header
+async def verify_api_token(api_token: str = Header(...)):
+    if api_token != EXPECTED_API_TOKEN:
+        raise HTTPException(status_code=403, detail="Invalid API token.")
+
+# Pydantic model for automation commands
+class PCCommand(BaseModel):
+    command: str
+    params: Optional[Dict[str, str]] = None
+
+# -----------------------------
+# Basic Automation Functions
+# -----------------------------
+def open_file(params: Dict[str, str]) -> str:
+    file_path = params.get("file_path")
+    if not file_path or not os.path.exists(file_path):
+        raise ValueError("File path not provided or file does not exist.")
+    os.startfile(file_path)  # Windows-specific
+    return f"Opened file: {file_path}"
+
+def move_file(params: Dict[str, str]) -> str:
+    source = params.get("source")
+    destination = params.get("destination")
+    if not source or not destination:
+        raise ValueError("Both source and destination must be provided.")
+    if not os.path.exists(source):
+        raise ValueError("Source file does not exist.")
+    shutil.move(source, destination)
+    return f"Moved file from {source} to {destination}"
+
+def delete_file(params: Dict[str, str]) -> str:
+    file_path = params.get("file_path")
+    if not file_path or not os.path.exists(file_path):
+        raise ValueError("File path not provided or file does not exist.")
+    os.remove(file_path)
+    return f"Deleted file: {file_path}"
+
+def launch_app(params: Dict[str, str]) -> str:
+    app_path = params.get("app_path")
+    if not app_path or not os.path.exists(app_path):
+        raise ValueError("Application path not provided or does not exist.")
+    subprocess.Popen(app_path)
+    return f"Launched application: {app_path}"
+
+def close_app(params: Dict[str, str]) -> str:
+    app_name = params.get("app_name")
+    if not app_name:
+        raise ValueError("Application name must be provided.")
+    result = subprocess.run(["taskkill", "/IM", app_name, "/F"], capture_output=True, text=True)
+    if result.returncode != 0:
+        raise ValueError(f"Failed to close {app_name}: {result.stderr}")
+    return f"Closed application: {app_name}"
+
+def shutdown_system(params: Dict[str, str]) -> str:
+    os.system("shutdown /s /t 0")
+    return "System is shutting down."
+
+def restart_system(params: Dict[str, str]) -> str:
+    os.system("shutdown /r /t 0")
+    return "System is restarting."
+
+# -----------------------------
+# Advanced Automation Functions
+# -----------------------------
+def adjust_volume(params: Dict[str, str]) -> str:
+    volume = params.get("volume")
+    if volume is None:
+        raise ValueError("Volume parameter not provided.")
+    try:
+        vol_int = int(volume)
+        subprocess.run(["nircmd.exe", "setsysvolume", str(int(65535 * vol_int / 100))])
+        return f"Set volume to {vol_int}%."
+    except Exception as e:
+        raise ValueError(f"Failed to set volume: {str(e)}")
+
+def capture_screenshot(params: Dict[str, str]) -> str:
+    filename = params.get("filename", f"screenshot_{int(time.time())}.png")
+    screenshot = pyautogui.screenshot()
+    screenshot.save(filename)
+    return f"Screenshot saved as {filename}."
+
+def move_window(params: Dict[str, str]) -> str:
+    title = params.get("title")
+    x = params.get("x")
+    y = params.get("y")
+    width = params.get("width")
+    height = params.get("height")
+    if not title or None in (x, y, width, height):
+        raise ValueError("Title and window position/dimensions must be provided.")
+    try:
+        window = gw.getWindowsWithTitle(title)[0]
+        window.moveTo(int(x), int(y))
+        window.resizeTo(int(width), int(height))
+        return f"Moved window '{title}' to ({x}, {y}) and resized to {width}x{height}."
+    except Exception as e:
+        raise ValueError(f"Failed to move window: {str(e)}")
+
+def simulate_keyboard(params: Dict[str, str]) -> str:
+    keys = params.get("keys")
+    if not keys:
+        raise ValueError("Keys to simulate not provided.")
+    pyautogui.write(keys, interval=0.1)
+    return f"Simulated typing: {keys}"
+
+def simulate_mouse(params: Dict[str, str]) -> str:
+    action = params.get("action", "click")
+    x = int(params.get("x", 0))
+    y = int(params.get("y", 0))
+    if action == "click":
+        pyautogui.click(x, y)
+        return f"Mouse clicked at ({x}, {y})."
+    elif action == "move":
+        pyautogui.moveTo(x, y, duration=0.5)
+        return f"Mouse moved to ({x}, {y})."
+    else:
+        raise ValueError("Unsupported mouse action.")
+
+# -----------------------------
+# Command Map (Extended with Advanced Features)
+# -----------------------------
+command_map = {
+    "open_file": open_file,
+    "move_file": move_file,
+    "delete_file": delete_file,
+    "launch_app": launch_app,
+    "close_app": close_app,
+    "shutdown": shutdown_system,
+    "restart": restart_system,
+    "adjust_volume": adjust_volume,
+    "capture_screenshot": capture_screenshot,
+    "move_window": move_window,
+    "simulate_keyboard": simulate_keyboard,
+    "simulate_mouse": simulate_mouse,
+    # Additional advanced commands can be added here.
+}
+
+# -----------------------------
+# Audit Logging
+# -----------------------------
+def audit_log(message: str):
+    log_file = "automation_audit.log"
+    with open(log_file, "a") as f:
+        f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - {message}\n")
+    logger.info(f"Audit: {message}")
+
+# -----------------------------
+# FastAPI Endpoint with Security Features
+# -----------------------------
+@app.post("/pc-automation", summary="Advanced PC Automation Command", response_description="Result of command execution")
+async def pc_automation(cmd: PCCommand, api_token: str = Depends(verify_api_token)):
+    try:
+        audit_log(f"Received command: {cmd.command} with params: {cmd.params}")
+        func = command_map.get(cmd.command)
+        if not func:
+            raise HTTPException(status_code=400, detail="Unsupported command.")
+        result = func(cmd.params or {})
+        audit_log(f"Executed command: {cmd.command}, result: {result}")
+        return {"result": result}
+    except Exception as e:
+        audit_log(f"Error executing command: {cmd.command}, error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# -----------------------------
+# Run the Application
+# -----------------------------
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="127.0.0.1", port=8080)
